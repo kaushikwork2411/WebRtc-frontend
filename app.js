@@ -1,6 +1,17 @@
 const connection = new signalR.HubConnectionBuilder()
-.withUrl("http://localhost:5000/signaling")
+.withUrl("https://192.168.1.9:25689/signalingHub",{
+    transport: signalR.HttpTransportType.WebSockets, 
+    skipNegotiation: true
+})
 .build();
+
+// const connection = new signalR.HubConnectionBuilder()
+// .withUrl("https://localhost:7004/signalingHub",{
+//     transport: signalR.HttpTransportType.WebSockets, 
+//     skipNegotiation: true
+// })
+// .build();
+
 
 const configuration = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 const localVideo = document.getElementById("localVideo");
@@ -8,6 +19,7 @@ const remoteVideo = document.getElementById("remoteVideo");
 let localStream;
 let peerConnection;
 
+debugger;
 connection.on("ReceiveOffer", async (fromConnectionId, offer) => {
 peerConnection = createPeerConnection(fromConnectionId);
 await peerConnection.setRemoteDescription(new RTCSessionDescription(JSON.parse(offer)));
