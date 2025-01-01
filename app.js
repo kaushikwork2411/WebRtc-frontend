@@ -6,14 +6,15 @@
 //     .build();
 
 const connection = new signalR.HubConnectionBuilder()
-.withUrl("https://localhost:7004/signalingHub",{
-    transport: signalR.HttpTransportType.WebSockets, 
-    skipNegotiation: true
-}).configureLogging(signalR.LogLevel.Information)
-.build();
+    .withUrl("https://localhost:7004/signalingHub", {
+        transport: signalR.HttpTransportType.WebSockets,
+        skipNegotiation: true
+    }).configureLogging(signalR.LogLevel.Information)
+    .build();
 
 
-const configuration = { iceServers: [{ urls: "stun:stun.l.google.com:19302" },{ urls: "stun:stun.l.google.com:5349" },
+const configuration = {
+    iceServers: [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun.l.google.com:5349" },
     { urls: "stun:stun1.l.google.com:3478" },
     { urls: "stun:stun1.l.google.com:5349" },
     { urls: "stun:stun2.l.google.com:19302" },
@@ -235,132 +236,146 @@ const configuration = { iceServers: [{ urls: "stun:stun.l.google.com:19302" },{ 
     { urls: "stun:stun.voztele.com:3478" },
     { urls: "stun:stun.vyke.com:3478" },
     { urls: "stun:stun.webcalldirect.com:3478" },
-    { urls: "stun:stun.whoi.edu:3478" },] };
-    const localVideo = document.getElementById("localVideo");
-    const remoteVideo = document.getElementById("remoteVideo");
-    let localStream;
-    let peerConnection;
-    
-    // SignalR Handlers
-    connection.on("ReceiveOffer", async (fromConnectionId, offer) => {
-        try {
-            peerConnection = createPeerConnection(fromConnectionId);
-            await peerConnection.setRemoteDescription(new RTCSessionDescription(JSON.parse(offer)));
-    
-            const answer = await peerConnection.createAnswer();
-            await peerConnection.setLocalDescription(answer);
-    
-            await connection.invoke("SendAnswer", fromConnectionId, JSON.stringify(answer));
-        } catch (error) {
-            showError("Error handling the offer: " + error.message);
-        }
-    });
-    
-    connection.on("ReceiveAnswer", async (fromConnectionId, answer) => {
-        try {
-            await peerConnection.setRemoteDescription(new RTCSessionDescription(JSON.parse(answer)));
-        } catch (error) {
-            showError("Error handling the answer: " + error.message);
-        }
-    });
-    
-    connection.on("ReceiveIceCandidate", async (fromConnectionId, candidate) => {
-        try {
-            await peerConnection.addIceCandidate(new RTCIceCandidate(JSON.parse(candidate)));
-        } catch (error) {
-            showError("Error handling ICE candidate: " + error.message);
-        }
-    });
-    
-    // Permission Check and Initialization
-    async function checkAndRequestPermissions() {
-        try {
-            const permissions = await navigator.permissions.query({ name: "camera" });
-            if (permissions.state === "denied") throw new Error("Permissions denied.");
-    
-            return await requestPermissions();
-        } catch (error) {
-            return false;
-        }
-    }
-    
-    async function requestPermissions() {
-        try {
-            await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            return true;
-        } catch {
-            return false;
-        }
-    }
-    
-    async function initializeLocalStream() {
-        try {
-            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            localVideo.srcObject = localStream;
-        } catch (error) {
-            showError("Error initializing local stream: " + error.message);
-        }
-    }
-    
-    // Create Peer Connection
-    function createPeerConnection(remoteConnectionId) {
-        const pc = new RTCPeerConnection(configuration);
-    
-        pc.onicecandidate = ({ candidate }) => {
-            if (candidate) {
-                connection.invoke("SendIceCandidate", remoteConnectionId, JSON.stringify(candidate));
-            }
-        };
-    
-        pc.ontrack = (event) => {
-            remoteVideo.srcObject = event.streams[0];
-        };
-    
-        return pc;
-    }
-    
-    // Start Call
-    async function startCall() {
-        try {
-            if (!localStream) {
-                const hasPermission = await checkAndRequestPermissions();
-                if (!hasPermission) throw new Error("Permissions not granted.");
-                await initializeLocalStream();
-            }
-    
-            peerConnection = createPeerConnection(connection.connectionId);
-            localStream.getTracks().forEach((track) => peerConnection.addTrack(track, localStream));
-    
-            const offer = await peerConnection.createOffer();
-            await peerConnection.setLocalDescription(offer);
-    
-            await connection.invoke("SendOffer", connection.connectionId, JSON.stringify(offer));
-        } catch (error) {
-            showError(error.message);
-        }
-    }
-    
-    // Error Display
-    function showError(message) {
-        const errorElement = document.getElementById("errorMessage");
-        errorElement.textContent = message;
-        errorElement.style.display = "block";
-    }
-    
-    // Start SignalR Connection
-    connection.start().then(() => {
-        console.log("SignalR connection established.");
-        initializeLocalStream();
-    }).catch(error => {
-        showError("Error establishing SignalR connection: "+ error);
-    });
-    
-    // document.getElementById("startCall").addEventListener("click", startCall);
+    { urls: "stun:stun.whoi.edu:3478" },]
+};
+const localVideo = document.getElementById("localVideo");
+const remoteVideo = document.getElementById("remoteVideo");
+let localStream;
+let peerConnection;
 
-    document.getElementById("startCall").addEventListener("click", async () => {
-        if (connection.state === signalR.HubConnectionState.Connected) {
-            await startCall();
-        } else {
-            showError("Connection not ready. Wait until SignalR connection is established."); 
+// SignalR Handlers
+connection.on("ReceiveOffer", async (fromConnectionId, offer) => {
+    try {
+        peerConnection = createPeerConnection(fromConnectionId);
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(JSON.parse(offer)));
+
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+
+        await connection.invoke("SendAnswer", fromConnectionId, JSON.stringify(answer));
+    } catch (error) {
+        showError("Error handling the offer: " + error.message);
+    }
+});
+
+connection.on("ReceiveAnswer", async (fromConnectionId, answer) => {
+    try {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(JSON.parse(answer)));
+    } catch (error) {
+        showError("Error handling the answer: " + error.message);
+    }
+});
+
+connection.on("ReceiveIceCandidate", async (fromConnectionId, candidate) => {
+    try {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(JSON.parse(candidate)));
+    } catch (error) {
+        showError("Error handling ICE candidate: " + error.message);
+    }
+});
+
+// Permission Check and Initialization
+async function checkAndRequestPermissions() {
+    try {
+        const permissions = await navigator.permissions.query({ name: "camera" });
+        if (permissions.state === "denied") throw new Error("Permissions denied.");
+
+        return await requestPermissions();
+    } catch (error) {
+        return false;
+    }
+}
+
+async function requestPermissions() {
+    try {
+        await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+async function initializeLocalStream() {
+    try {
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        localVideo.srcObject = localStream;
+    } catch (error) {
+        showError("Error initializing local stream: " + error.message);
+    }
+}
+
+// Create Peer Connection
+function createPeerConnection(remoteConnectionId) {
+    const pc = new RTCPeerConnection(configuration);
+
+    pc.onicecandidate = ({ candidate }) => {
+        if (candidate) {
+            connection.invoke("SendIceCandidate", remoteConnectionId, JSON.stringify(candidate));
         }
-    });
+    };
+
+    pc.ontrack = (event) => {
+        remoteVideo.srcObject = event.streams[0];
+    };
+
+    return pc;
+}
+
+// Start Call
+async function startCall() {
+    try {
+        if (!localStream) {
+            const hasPermission = await checkAndRequestPermissions();
+            if (!hasPermission) throw new Error("Permissions not granted.");
+            await initializeLocalStream();
+        }
+        // Wait for the connection to be established
+        if (connection.state !== signalR.HubConnectionState.Connected) {
+            showError("SignalR connection not established. Attempting to reconnect...");
+            await connection.start(); // Wait for the connection to be established
+        }
+
+        peerConnection = createPeerConnection(connection.connectionId);
+        localStream.getTracks().forEach((track) => peerConnection.addTrack(track, localStream));
+
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+
+        await connection.invoke("SendOffer", connection.connectionId, JSON.stringify(offer));
+    } catch (error) {
+        showError(error.message);
+    }
+}
+
+// Error Display
+function showError(message) {
+    const errorElement = document.getElementById("errorMessage");
+    errorElement.textContent = message;
+    errorElement.style.display = "block";
+}
+
+// Start SignalR Connection
+connection.start().then(() => {
+    console.log("SignalR connection established.");
+    initializeLocalStream();
+}).catch(error => {
+    showError("Error establishing SignalR connection: " + error);
+});
+
+// document.getElementById("startCall").addEventListener("click", startCall);
+
+document.getElementById("startCall").addEventListener("click", async () => {
+    if (connection.state === signalR.HubConnectionState.Connected) {
+        await startCall();
+    } else {
+        connection.start()
+            .then(() => {
+                console.log("SignalR connection established.");
+                startCall(); // Start the call after the connection is fully established
+            })
+            .catch(error => {
+                showError("Error starting SignalR connection: " + error);
+            });
+        showError("Connection not ready. Wait until SignalR connection is established.");
+    }
+});
