@@ -1,17 +1,27 @@
-const connection = new signalR.HubConnectionBuilder()
-    .withUrl("https://192.168.1.9:25689/signalingHub", {
-        transport: signalR.HttpTransportType.WebSockets,
-        skipNegotiation: true,
-        ws:true,
-        accessTokenFactory: () => deviceId 
-    }).configureLogging(signalR.LogLevel.Information)
-    .build();
+const localVideo = document.getElementById("localVideo");
+const remoteVideo = document.getElementById("remoteVideo");
+let localStream;
+let peerConnection;
+let connectionId = null; 
+let deviceId = generateDeviceId();
+let connection;
+
+// const connection = new signalR.HubConnectionBuilder()
+//     .withUrl("https://192.168.1.9:25689/signalingHub", {
+//         transport: signalR.HttpTransportType.WebSockets,
+//         skipNegotiation: true,
+//         ws:true,
+//         accessTokenFactory: () => deviceId 
+//     }).configureLogging(signalR.LogLevel.Information)
+//     .build();
 
 // const connection = new signalR.HubConnectionBuilder()
 //     .withUrl("https://localhost:7004/signalingHub", {
 //         transport: signalR.HttpTransportType.WebSockets,
-//         skipNegotiation: true
-//     }).configureLogging(signalR.LogLevel.Information)
+//         skipNegotiation: true,
+//         accessTokenFactory: () => deviceId 
+//     }).withAutomaticReconnect()
+//     .configureLogging(signalR.LogLevel.Information)
 //     .build();
 
 
@@ -240,42 +250,37 @@ const configuration = {
     { urls: "stun:stun.webcalldirect.com:3478" },
     { urls: "stun:stun.whoi.edu:3478" },]
 };
-const localVideo = document.getElementById("localVideo");
-const remoteVideo = document.getElementById("remoteVideo");
-let localStream;
-let peerConnection;
-let connectionId = null; 
-let deviceId = generateDeviceId();
-// SignalR Handlers
-connection.on("ReceiveOffer", async (fromConnectionId, offer) => {
-    try {
-        peerConnection = createPeerConnection(fromConnectionId);
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(JSON.parse(offer)));
 
-        const answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
+// // SignalR Handlers
+// connection.on("ReceiveOffer", async (fromConnectionId, offer) => {
+//     try {
+//         peerConnection = createPeerConnection(fromConnectionId);
+//         await peerConnection.setRemoteDescription(new RTCSessionDescription(JSON.parse(offer)));
 
-        await connection.invoke("SendAnswer", deviceId, JSON.stringify(answer), fromConnectionId);
-    } catch (error) {
-        showError("Error handling the offer: " + error.message);
-    }
-});
+//         const answer = await peerConnection.createAnswer();
+//         await peerConnection.setLocalDescription(answer);
 
-connection.on("ReceiveAnswer", async (fromConnectionId, answer) => {
-    try {
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(JSON.parse(answer)));
-    } catch (error) {
-        showError("Error handling the answer: " + error.message);
-    }
-});
+//         await connection.invoke("SendAnswer", deviceId, JSON.stringify(answer), fromConnectionId);
+//     } catch (error) {
+//         showError("Error handling the offer: " + error.message);
+//     }
+// });
 
-connection.on("ReceiveIceCandidate", async (fromConnectionId, candidate) => {
-    try {
-        await peerConnection.addIceCandidate(new RTCIceCandidate(JSON.parse(candidate)));
-    } catch (error) {
-        showError("Error handling ICE candidate: " + error.message);
-    }
-});
+// connection.on("ReceiveAnswer", async (fromConnectionId, answer) => {
+//     try {
+//         await peerConnection.setRemoteDescription(new RTCSessionDescription(JSON.parse(answer)));
+//     } catch (error) {
+//         showError("Error handling the answer: " + error.message);
+//     }
+// });
+
+// connection.on("ReceiveIceCandidate", async (fromConnectionId, candidate) => {
+//     try {
+//         await peerConnection.addIceCandidate(new RTCIceCandidate(JSON.parse(candidate)));
+//     } catch (error) {
+//         showError("Error handling ICE candidate: " + error.message);
+//     }
+// });
 
 // Permission Check and Initialization
 async function checkAndRequestPermissions() {
@@ -358,12 +363,12 @@ function showError(message) {
 }
 
 // Start SignalR Connection
-connection.start().then(() => {
-    console.log("SignalR connection established.");
-    initializeLocalStream();
-}).catch(error => {
-    showError("Error establishing SignalR connection: " + error);
-});
+// connection.start().then(() => {
+//     console.log("SignalR connection established.");
+//     initializeLocalStream();
+// }).catch(error => {
+//     showError("Error establishing SignalR connection: " + error);
+// });
 
 // document.getElementById("startCall").addEventListener("click", startCall);
 
@@ -373,7 +378,7 @@ document.getElementById("startCall").addEventListener("click", async () => {
     } else {
         connection.start()
             .then(() => {
-                console.log("SignalR connection established.");
+                console.log("SignalR connection established second time.");
                 startCall(); // Start the call after the connection is fully established
             })
             .catch(error => {
@@ -392,3 +397,60 @@ function generateDeviceId(length = 10) {
     }
     return deviceId;
 }
+
+
+
+////////////////////////////////////////////////////////////////
+
+function initializeSignalRConnection() {
+    connection = new signalR.HubConnectionBuilder()
+        .withUrl(`https://localhost:7004/signalingHub?access_token=${deviceId}`, {
+            transport: signalR.HttpTransportType.WebSockets,
+            skipNegotiation: true
+        })
+        .withAutomaticReconnect()
+        .configureLogging(signalR.LogLevel.Information)
+        .build();
+
+    // SignalR event handlers
+    connection.on("ReceiveOffer", async (fromDeviceId, offer) => {
+        try {
+            peerConnection = createPeerConnection(fromDeviceId);
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(JSON.parse(offer)));
+
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+
+            await connection.invoke("SendAnswer", fromDeviceId, JSON.stringify(answer), deviceId);
+        } catch (error) {
+            showError("Error handling the offer: " + error.message);
+        }
+    });
+
+    connection.on("ReceiveAnswer", async (fromDeviceId, answer) => {
+        try {
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(JSON.parse(answer)));
+        } catch (error) {
+            showError("Error handling the answer: " + error.message);
+        }
+    });
+
+    connection.on("ReceiveIceCandidate", async (fromDeviceId, candidate) => {
+        try {
+            await peerConnection.addIceCandidate(new RTCIceCandidate(JSON.parse(candidate)));
+        } catch (error) {
+            showError("Error handling ICE candidate: " + error.message);
+        }
+    });
+
+    connection.start()
+        .then(() =>{
+            initializeLocalStream();
+            console.log(`SignalR connection established for device: ${deviceId}`);
+        } )
+        .catch(error => showError("Error establishing SignalR connection: " + error));
+}
+
+
+// Initialize everything
+initializeSignalRConnection();
