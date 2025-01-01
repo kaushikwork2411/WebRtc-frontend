@@ -236,128 +236,121 @@ const configuration = { iceServers: [{ urls: "stun:stun.l.google.com:19302" },{ 
     { urls: "stun:stun.vyke.com:3478" },
     { urls: "stun:stun.webcalldirect.com:3478" },
     { urls: "stun:stun.whoi.edu:3478" },] };
-const localVideo = document.getElementById("localVideo");
-const remoteVideo = document.getElementById("remoteVideo");
-let localStream;
-let peerConnection;
-
-connection.on("ReceiveOffer", async (fromConnectionId, offer) => {
-    try {
-        console.log("offer recived");
-        peerConnection = createPeerConnection(fromConnectionId);
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(JSON.parse(offer)));
-        const answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
-        console.log(JSON.stringify(answer));
-        connection.invoke("SendAnswer", fromConnectionId, JSON.stringify(answer));
-    } catch (error) {
-        showError("Error handling the offer: " + error.message);
-    }
-
-});
-
-connection.on("ReceiveAnswer", async (fromConnectionId, answer) => {
-    try {
-        console.log(JSON.stringify(candidate));
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(JSON.parse(answer)));
-        console.log("ReceiveAnswer");
-    } catch (error) {
-        showError("Error handling the offer: " + error.message);
-    }
-
-});
-
-connection.on("ReceiveIceCandidate", async (fromConnectionId, candidate) => {
-    try {
-        console.log(JSON.stringify(candidate));
-        await peerConnection.addIceCandidate(new RTCIceCandidate(JSON.parse(candidate)));
-        console.log("ReceiveIceCandidate");
-    } catch (error) {
-        showError("Error handling the offer: " + error.message);
-    }
-
-
-});
-
-async function startLocalStream() {
-    try {
-        console.log("start local stream....");
-        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-
-        console.log("local stream is : ",localStream)
-        localVideo.srcObject = localStream;
-    } catch (error) {
-        showError("Error handling the offer: " + error.message);
-    }
-
-}
-
-function createPeerConnection(remoteConnectionId) {
-
-    const pc = new RTCPeerConnection(configuration);
-console.log("pc : ",pc);
-    pc.onicecandidate = ({ candidate }) => {
+    const localVideo = document.getElementById("localVideo");
+    const remoteVideo = document.getElementById("remoteVideo");
+    let localStream;
+    let peerConnection;
+    
+    // SignalR Handlers
+    connection.on("ReceiveOffer", async (fromConnectionId, offer) => {
         try {
+            peerConnection = createPeerConnection(fromConnectionId);
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(JSON.parse(offer)));
+    
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+    
+            await connection.invoke("SendAnswer", fromConnectionId, JSON.stringify(answer));
+        } catch (error) {
+            showError("Error handling the offer: " + error.message);
+        }
+    });
+    
+    connection.on("ReceiveAnswer", async (fromConnectionId, answer) => {
+        try {
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(JSON.parse(answer)));
+        } catch (error) {
+            showError("Error handling the answer: " + error.message);
+        }
+    });
+    
+    connection.on("ReceiveIceCandidate", async (fromConnectionId, candidate) => {
+        try {
+            await peerConnection.addIceCandidate(new RTCIceCandidate(JSON.parse(candidate)));
+        } catch (error) {
+            showError("Error handling ICE candidate: " + error.message);
+        }
+    });
+    
+    // Permission Check and Initialization
+    async function checkAndRequestPermissions() {
+        try {
+            const permissions = await navigator.permissions.query({ name: "camera" });
+            if (permissions.state === "denied") throw new Error("Permissions denied.");
+    
+            return await requestPermissions();
+        } catch (error) {
+            return false;
+        }
+    }
+    
+    async function requestPermissions() {
+        try {
+            await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            return true;
+        } catch {
+            return false;
+        }
+    }
+    
+    async function initializeLocalStream() {
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            localVideo.srcObject = localStream;
+        } catch (error) {
+            showError("Error initializing local stream: " + error.message);
+        }
+    }
+    
+    // Create Peer Connection
+    function createPeerConnection(remoteConnectionId) {
+        const pc = new RTCPeerConnection(configuration);
+    
+        pc.onicecandidate = ({ candidate }) => {
             if (candidate) {
-                console.log(JSON.stringify(candidate));
                 connection.invoke("SendIceCandidate", remoteConnectionId, JSON.stringify(candidate));
             }
-        } catch (error) {
-            showError("Error handling the offer: " + error.message);
-        }
-
-    };
-
-    pc.ontrack = (event) => {
-        try {
-            console.log("Track received: ", event.streams[0]);
+        };
+    
+        pc.ontrack = (event) => {
             remoteVideo.srcObject = event.streams[0];
+        };
+    
+        return pc;
+    }
+    
+    // Start Call
+    async function startCall() {
+        try {
+            if (!localStream) {
+                const hasPermission = await checkAndRequestPermissions();
+                if (!hasPermission) throw new Error("Permissions not granted.");
+                await initializeLocalStream();
+            }
+    
+            peerConnection = createPeerConnection(connection.connectionId);
+            localStream.getTracks().forEach((track) => peerConnection.addTrack(track, localStream));
+    
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+    
+            await connection.invoke("SendOffer", connection.connectionId, JSON.stringify(offer));
         } catch (error) {
-            showError("Error handling the offer: " + error.message);
+            showError(error.message);
         }
-
-    };
-return pc;
-
-}
-
-async function startCall() {
-    try {
-        console.log("call start....");
-        peerConnection = createPeerConnection(connection.connectionId); // Replace with actual remote peer ID
-
-         // Add local stream tracks to the peer connection
-         localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-
-        console.log(peerConnection)
-        const offer = await peerConnection.createOffer();
-        await peerConnection.setLocalDescription(offer);
-
-        console.log("Offer created: ", offer);
-
-        connection.invoke("SendOffer", connection.connectionId, JSON.stringify(offer)); // Replace with actual remote peer ID
-    } catch (error) {
-        showError("Error handling the offer: " + error.message);
     }
-
-}
-
-// Start connection and local stream
-connection.start().then(() => {
-    try {
-        console.log("connection establish successfully....")
-        startLocalStream()
-    } catch (error) {
-        showError("Error handling the offer: " + error.message);
+    
+    // Error Display
+    function showError(message) {
+        const errorElement = document.getElementById("errorMessage");
+        errorElement.textContent = message;
+        errorElement.style.display = "block";
     }
-
-
-});
-
-document.getElementById("startCall").addEventListener("click", startCall);
-
-function showError(message) {
-    const errorElement = document.getElementById('errorMessage');
-    errorElement.textContent = message;
-    errorElement.style.display = 'block';  // Show the error message div
-}
+    
+    // Start SignalR Connection
+    connection.start().then(() => {
+        console.log("SignalR connection established.");
+        initializeLocalStream();
+    });
+    
+    document.getElementById("startCall").addEventListener("click", startCall);
