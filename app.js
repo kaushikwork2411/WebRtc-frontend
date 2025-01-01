@@ -338,9 +338,9 @@ async function startCall() {
             await initializeLocalStream();
         }
         // Wait for the connection to be established
-        if (connection.state !== signalR.HubConnectionState.Connected) {
-            showError("SignalR connection not established. Attempting to reconnect...");
-            await connection.start(); // Wait for the connection to be established
+        if (connection.state === signalR.HubConnectionState.Disconnected || 
+            connection.state === signalR.HubConnectionState.Reconnecting) {
+            await connection.start(); 
         }
 
         peerConnection = createPeerConnection(connection.connectionId);
