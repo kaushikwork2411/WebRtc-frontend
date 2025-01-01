@@ -2,7 +2,8 @@ const connection = new signalR.HubConnectionBuilder()
     .withUrl("https://192.168.1.9:25689/signalingHub", {
         transport: signalR.HttpTransportType.WebSockets,
         skipNegotiation: true,
-        ws:true
+        ws:true,
+        accessTokenFactory: () => deviceId 
     }).configureLogging(signalR.LogLevel.Information)
     .build();
 
@@ -243,7 +244,8 @@ const localVideo = document.getElementById("localVideo");
 const remoteVideo = document.getElementById("remoteVideo");
 let localStream;
 let peerConnection;
-
+let connectionId = null; 
+let deviceId = generateDeviceId();
 // SignalR Handlers
 connection.on("ReceiveOffer", async (fromConnectionId, offer) => {
     try {
@@ -253,7 +255,7 @@ connection.on("ReceiveOffer", async (fromConnectionId, offer) => {
         const answer = await peerConnection.createAnswer();
         await peerConnection.setLocalDescription(answer);
 
-        await connection.invoke("SendAnswer", fromConnectionId, JSON.stringify(answer));
+        await connection.invoke("SendAnswer", deviceId, JSON.stringify(answer), fromConnectionId);
     } catch (error) {
         showError("Error handling the offer: " + error.message);
     }
@@ -311,7 +313,7 @@ function createPeerConnection(remoteConnectionId) {
 
     pc.onicecandidate = ({ candidate }) => {
         if (candidate) {
-            connection.invoke("SendIceCandidate", remoteConnectionId, JSON.stringify(candidate));
+            connection.invoke("SendIceCandidate", remoteConnectionId, JSON.stringify(candidate), deviceId);
         }
     };
 
@@ -342,7 +344,7 @@ async function startCall() {
         const offer = await peerConnection.createOffer();
         await peerConnection.setLocalDescription(offer);
 
-        await connection.invoke("SendOffer", connection.connectionId, JSON.stringify(offer));
+        await connection.invoke("SendOffer", deviceId, JSON.stringify(offer), deviceId);
     } catch (error) {
         showError(error.message);
     }
@@ -380,3 +382,13 @@ document.getElementById("startCall").addEventListener("click", async () => {
         showError("Connection not ready. Wait until SignalR connection is established.");
     }
 });
+
+
+function generateDeviceId(length = 10) {
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let deviceId = '';
+    for (let i = 0; i < length; i++) {
+        deviceId += characters.charAt(Math.floor(Math.random() * characters.length));
+    }
+    return deviceId;
+}
