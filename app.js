@@ -1,7 +1,8 @@
 const connection = new signalR.HubConnectionBuilder()
     .withUrl("https://192.168.1.9:25689/signalingHub", {
         transport: signalR.HttpTransportType.WebSockets,
-        skipNegotiation: true
+        skipNegotiation: true,
+        ws:true
     }).configureLogging(signalR.LogLevel.Information)
     .build();
 
