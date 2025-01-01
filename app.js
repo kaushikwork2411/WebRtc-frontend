@@ -1,16 +1,16 @@
-// const connection = new signalR.HubConnectionBuilder()
-//     .withUrl("https://192.168.1.9:25689/signalingHub", {
-//         transport: signalR.HttpTransportType.WebSockets,
-//         skipNegotiation: true
-//     }).configureLogging(signalR.LogLevel.Information)
-//     .build();
-
 const connection = new signalR.HubConnectionBuilder()
-    .withUrl("https://localhost:7004/signalingHub", {
+    .withUrl("https://192.168.1.9:25689/signalingHub", {
         transport: signalR.HttpTransportType.WebSockets,
         skipNegotiation: true
     }).configureLogging(signalR.LogLevel.Information)
     .build();
+
+// const connection = new signalR.HubConnectionBuilder()
+//     .withUrl("https://localhost:7004/signalingHub", {
+//         transport: signalR.HttpTransportType.WebSockets,
+//         skipNegotiation: true
+//     }).configureLogging(signalR.LogLevel.Information)
+//     .build();
 
 
 const configuration = {
