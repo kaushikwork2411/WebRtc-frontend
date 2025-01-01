@@ -351,6 +351,16 @@ const configuration = { iceServers: [{ urls: "stun:stun.l.google.com:19302" },{ 
     connection.start().then(() => {
         console.log("SignalR connection established.");
         initializeLocalStream();
+    }).catch(error => {
+        showError("Error establishing SignalR connection: "+ error);
     });
     
-    document.getElementById("startCall").addEventListener("click", startCall);
+    // document.getElementById("startCall").addEventListener("click", startCall);
+
+    document.getElementById("startCall").addEventListener("click", async () => {
+        if (connection.state === signalR.HubConnectionState.Connected) {
+            await startCall();
+        } else {
+            showError("Connection not ready. Wait until SignalR connection is established."); 
+        }
+    });
